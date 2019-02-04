@@ -1,7 +1,5 @@
-const mcl = require('mcl-wasm')
+const mcl = require('mcl-wasm');
 
-const param_g = 'abc';
-const param_h = 'abc';
 
 class PRE {
     /**
@@ -11,7 +9,7 @@ class PRE {
      * @returns {Promise<void>}
      */
     async init(g, h) {
-        await mcl.init();
+        await mcl.init(mcl.BN462);
         this.g = new mcl.G1();
         this.g.setHashOf(g);
 
@@ -50,7 +48,7 @@ class PRE {
      */
     encrypt(plain, pk) {
         const m = new mcl.Fr()
-        m.setStr(plain)
+        m.setStr(plain, 16)
         const k = new mcl.Fr();
         k.setByCSPRNG();
 
@@ -72,7 +70,7 @@ class PRE {
         let [gak, mzk] = encrypted;
         const eah = mcl.pairing(gak, this.h);
         const eahInvSk = mcl.pow(eah, mcl.inv(sk));
-        return mcl.sub(mzk, mcl.hashToFr(eahInvSk.serialize())).getStr()
+        return mcl.sub(mzk, mcl.hashToFr(eahInvSk.serialize())).getStr(16)
     }
 
     /**
@@ -98,7 +96,7 @@ class PRE {
         let [Zbk, mzk] = reEncrypted;
         const ZbkInvB = mcl.pow(Zbk, mcl.inv(sk));
 
-        return mcl.sub(mzk, mcl.hashToFr(ZbkInvB.serialize())).getStr()
+        return mcl.sub(mzk, mcl.hashToFr(ZbkInvB.serialize())).getStr(16)
 
     }
 
@@ -136,8 +134,11 @@ class Delegator {
 }
 
 class Delegatee {
-
-    constructor() {
+    /**
+     *
+     * @param  {PRE} pre
+     */
+    constructor(pre) {
         const keys = pre.keyGenInG2()
         this.sk = keys[0]
         this.pk = keys[1]
@@ -155,24 +156,4 @@ class Proxy {
     }
 }
 
-const pre = new PRE();
-pre.init(param_g, param_h).then(() => {
-    const A = new Delegator(pre);
-    const B = new Delegatee();
-
-    const plain = "12345"
-    //A encrypts plain to encrypted and upload to cloud
-    const encrypted = A.encrypt(plain)
-    //A can download it from cloud and decrypt it at any time
-    const decrypted = A.decrypt(encrypted)
-    //A generates reKey with B's public key and pass it to Proxy
-    const reKeyAB = A.reKeyGen(B.pk);
-    //When B requests to download, Proxy reEncrypts what's on the cloud  with reKey
-    const reEncrypted = Proxy.reEncrypt(encrypted, reKeyAB);
-    //B can decrypted it with his secret key
-    const reDecrypted = B.reDecrypt(reEncrypted);
-    //the result are the same
-    console.log(decrypted)
-    console.log(reDecrypted)
-
-})
+module.exports = {PRE, Delegator, Delegatee, Proxy};
